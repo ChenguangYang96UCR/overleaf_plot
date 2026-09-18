@@ -35,6 +35,24 @@
     return "rectangle";
   }
 
+  function fontFamily(options) {
+    const font = optionValue(options, "font", "");
+    if (font.includes("\\sffamily")) return "sans";
+    if (font.includes("\\ttfamily")) return "monospace";
+    return "serif";
+  }
+
+  function fontSize(options) {
+    const font = optionValue(options, "font", "");
+    const match = /\\fontsize\{([\d.]+)\}/.exec(font);
+    return match ? Number(match[1]) : 10;
+  }
+
+  function pointSize(options, key, fallback) {
+    const match = new RegExp("(?:^|,)\\s*" + key + "\\s*=\\s*(" + NUMBER + ")\\s*pt(?:\\s*,|$)").exec(options || "");
+    return match ? Number(match[1]) : fallback;
+  }
+
   function parseTikz(source) {
     const nodes = [];
     const edges = [];
@@ -51,6 +69,9 @@
         shape: nodeShape(match[1]),
         fill: optionValue(match[1], "fill", "white"),
         stroke: optionValue(match[1], "draw", "black"),
+        fontFamily: fontFamily(match[1]),
+        fontSize: fontSize(match[1]),
+        borderWidth: pointSize(match[1], "line width", 0.4),
         options: match[1] || "",
         start: match.index,
         end: NODE_RE.lastIndex,
@@ -80,10 +101,17 @@
       if (shapeOptions.has(part) || part.startsWith("rounded corners")) return false;
       if (part === "draw" || part.startsWith("draw=")) return false;
       if (part === "fill" || part.startsWith("fill=")) return false;
+      if (part.startsWith("font=")) return false;
+      if (part.startsWith("line width=")) return false;
+      if (["thin", "semithin", "thick", "very thick", "ultra thick"].includes(part)) return false;
       return true;
     });
     parts.push("draw=" + (node.stroke || "black"));
     parts.push("fill=" + (node.fill || "white"));
+    const family = node.fontFamily === "sans" ? "\\sffamily" : node.fontFamily === "monospace" ? "\\ttfamily" : "\\rmfamily";
+    const size = Number(node.fontSize) || 10;
+    parts.push("font=" + family + "\\fontsize{" + format(size) + "}{" + format(size * 1.2) + "}\\selectfont");
+    parts.push("line width=" + format(Number(node.borderWidth) || 0.4) + "pt");
     if (node.shape === "rounded") parts.push("rounded corners");
     if (node.shape === "ellipse") parts.push("ellipse");
     if (node.shape === "diamond") parts.push("diamond");

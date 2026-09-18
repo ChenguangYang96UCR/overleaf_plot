@@ -13,8 +13,6 @@
     "violet!70!black": "#6d28d9", "gray!70!black": "#374151"
   };
   const textMeasure = document.createElement("canvas").getContext("2d");
-  const nodeFontSize = 21;
-  textMeasure.font = `${nodeFontSize}px "Latin Modern Roman", "Times New Roman", serif`;
 
   const launcher = document.createElement("button");
   launcher.id = "ofv-launcher";
@@ -36,6 +34,12 @@
     <div id="ofv-node-tools" hidden>
       <strong id="ofv-selected-name">Selected node</strong>
       <label class="ofv-label-field">Text <input id="ofv-label" type="text" aria-label="Node text"></label>
+      <label>Font <select id="ofv-font-family">
+        <option value="serif">Serif</option>
+        <option value="sans">Sans serif</option>
+        <option value="monospace">Monospace</option>
+      </select></label>
+      <label>Font size <input id="ofv-font-size" class="ofv-number-input" type="number" min="6" max="48" step="1"> pt</label>
       <label>Shape <select id="ofv-shape">
         <option value="rectangle">Rectangle</option>
         <option value="rounded">Rounded rectangle</option>
@@ -47,11 +51,12 @@
         <option value="yellow!30">Yellow</option><option value="green!20">Green</option><option value="cyan!20">Cyan</option>
         <option value="blue!20">Blue</option><option value="violet!20">Violet</option><option value="gray!20">Gray</option>
       </select></label>
-      <label>Border <select id="ofv-stroke">
+      <label>Border color <select id="ofv-stroke">
         <option value="black">Black</option><option value="red!70!black">Red</option><option value="orange!80!black">Orange</option>
         <option value="green!60!black">Green</option><option value="cyan!60!black">Cyan</option><option value="blue!70!black">Blue</option>
         <option value="violet!70!black">Violet</option><option value="gray!70!black">Gray</option>
       </select></label>
+      <label>Border width <input id="ofv-border-width" class="ofv-number-input" type="number" min="0.1" max="5" step="0.1"> pt</label>
     </div>
     <details><summary>LaTeX source</summary><textarea id="ofv-source" spellcheck="false" placeholder="Paste TikZ code containing \\node ... at (x,y) and \\draw ..."></textarea></details>
     <div id="ofv-message">Drag a node to move it. Drag its bottom-right handle to resize it. Double-click a node to edit its text.</div>
@@ -66,9 +71,12 @@
   const nodeTools = panel.querySelector("#ofv-node-tools");
   const selectedName = panel.querySelector("#ofv-selected-name");
   const labelInput = panel.querySelector("#ofv-label");
+  const fontFamilyInput = panel.querySelector("#ofv-font-family");
+  const fontSizeInput = panel.querySelector("#ofv-font-size");
   const shapeInput = panel.querySelector("#ofv-shape");
   const fillInput = panel.querySelector("#ofv-fill");
   const strokeInput = panel.querySelector("#ofv-stroke");
+  const borderWidthInput = panel.querySelector("#ofv-border-width");
 
   launcher.addEventListener("click", () => panel.classList.toggle("open"));
   panel.addEventListener("click", (event) => {
@@ -80,7 +88,7 @@
     if (action === "copy") copyLatex();
     if (action === "copy-setup") copySetup();
   });
-  [shapeInput, fillInput, strokeInput].forEach((input) => input.addEventListener("change", updateSelectedStyle));
+  [shapeInput, fillInput, strokeInput, fontFamilyInput, fontSizeInput, borderWidthInput].forEach((input) => input.addEventListener("change", updateSelectedStyle));
   labelInput.addEventListener("change", commitLabelEdit);
   labelInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -134,10 +142,14 @@
   }
 
   function visualSize(node) {
+    const fontSize = Number(node.fontSize) || 10;
+    const fontSizePixels = fontSize * 2.54 / 72.27 * state.scale;
+    const browserFamily = node.fontFamily === "sans" ? "Arial, sans-serif" : node.fontFamily === "monospace" ? "monospace" : '"Latin Modern Roman", "Times New Roman", serif';
+    textMeasure.font = `${fontSizePixels}px ${browserFamily}`;
     const textWidth = textMeasure.measureText(node.label.replace(/\\[a-zA-Z]+/g, "")).width;
-    const tikzInnerSep = 0.24 * state.scale;
+    const tikzInnerSep = 0.24 * state.scale * fontSize / 10;
     let width = Math.max(node.width * state.scale, textWidth + tikzInnerSep);
-    let height = Math.max(node.height * state.scale, 0.58 * state.scale);
+    let height = Math.max(node.height * state.scale, 0.58 * state.scale * fontSize / 10);
     if (node.shape === "diamond") {
       const diameter = Math.max(width, height);
       width = diameter;
@@ -182,7 +194,8 @@
     const { node, x, y, width: w, height: h } = layout;
     const selected = state.selected === node.id;
     const group = svg("g", { class: "ofv-node" + (selected ? " selected" : ""), "data-id": node.id, transform: `translate(${x},${y})` });
-    const appearance = { class: "ofv-node-shape", fill: fillColors[node.fill] || "#ffffff", stroke: strokeColors[node.stroke] || "#1f2937" };
+    const borderPixels = (Number(node.borderWidth) || 0.4) * 2.54 / 72.27 * state.scale;
+    const appearance = { class: "ofv-node-shape", fill: fillColors[node.fill] || "#ffffff", stroke: strokeColors[node.stroke] || "#1f2937", style: `stroke-width:${borderPixels}px` };
     if (node.shape === "ellipse") {
       group.appendChild(svg("ellipse", { ...appearance, cx: 0, cy: 0, rx: w / 2, ry: h / 2 }));
     } else if (node.shape === "diamond") {
@@ -190,7 +203,9 @@
     } else {
       group.appendChild(svg("rect", { ...appearance, x: -w / 2, y: -h / 2, width: w, height: h, rx: node.shape === "rounded" ? 8 : 0 }));
     }
-    const label = svg("text", { x: 0, y: 1, "text-anchor": "middle", "dominant-baseline": "middle" });
+    const fontPixels = (Number(node.fontSize) || 10) * 2.54 / 72.27 * state.scale;
+    const browserFamily = node.fontFamily === "sans" ? "Arial, sans-serif" : node.fontFamily === "monospace" ? "monospace" : '"Latin Modern Roman", "Times New Roman", serif';
+    const label = svg("text", { x: 0, y: 1, "text-anchor": "middle", "dominant-baseline": "middle", style: `font-size:${fontPixels}px;font-family:${browserFamily}` });
     label.textContent = node.label.replace(/\\\\/g, " ");
     group.appendChild(label);
     const title = svg("title");
@@ -247,9 +262,12 @@
     if (!node) return;
     selectedName.textContent = `Selected: ${node.id}`;
     labelInput.value = node.label;
+    fontFamilyInput.value = node.fontFamily;
+    fontSizeInput.value = node.fontSize;
     shapeInput.value = node.shape;
     fillInput.value = fillColors[node.fill] ? node.fill : "white";
     strokeInput.value = strokeColors[node.stroke] ? node.stroke : "black";
+    borderWidthInput.value = node.borderWidth;
   }
 
   function updateSelectedStyle() {
@@ -258,6 +276,11 @@
     node.shape = shapeInput.value;
     node.fill = fillInput.value;
     node.stroke = strokeInput.value;
+    node.fontFamily = fontFamilyInput.value;
+    node.fontSize = Math.min(48, Math.max(6, Number(fontSizeInput.value) || 10));
+    node.borderWidth = Math.min(5, Math.max(0.1, Number(borderWidthInput.value) || 0.4));
+    fontSizeInput.value = node.fontSize;
+    borderWidthInput.value = node.borderWidth;
     syncSource();
     render();
     message(`Updated style for ${node.id}.`, false);
