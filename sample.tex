@@ -1,0 +1,9 @@
+\begin{tikzpicture}[>=stealth]
+  \node[draw, rounded corners, minimum width=2.8cm, minimum height=1.1cm] (start) at (0,0) {Start};
+  \node[draw, minimum width=3cm, minimum height=1.1cm] (process) at (0,-2.2) {Process data};
+  \node[draw, diamond, minimum width=2.5cm, minimum height=1.4cm] (check) at (0,-4.5) {Successful?};
+  \node[draw, rounded corners, minimum width=2.8cm, minimum height=1.1cm] (done) at (3.8,-4.5) {Done};
+  \draw[->] (start) -- (process);
+  \draw[->] (process) -- (check);
+  \draw[->] (check) -- (done);
+\end{tikzpicture}

@@ -1,0 +1,15 @@
+const assert = require("node:assert/strict");
+const { parseTikz, updateTikz } = require("./core.js");
+const source = String.raw`\node[draw, minimum width=2cm] (a) at (1,-2.5) {Hello};
+\node[draw] (b) at (4,3) {World};
+\draw[->] (a) -- (b);`;
+const parsed = parseTikz(source);
+assert.equal(parsed.nodes.length, 2);
+assert.equal(parsed.edges.length, 1);
+assert.deepEqual([parsed.nodes[0].x, parsed.nodes[0].y, parsed.nodes[0].width], [1, -2.5, 2]);
+parsed.nodes[0].x = 2.25;
+parsed.nodes[0].height = 1.5;
+const output = updateTikz(source, parsed.nodes);
+assert.match(output, /\(a\) at \(2\.25,-2\.5\)/);
+assert.match(output, /minimum height=1\.5cm/);
+console.log("core parser tests passed");

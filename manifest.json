@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Overleaf Flowchart Visualizer",
+  "version": "0.1.0",
+  "description": "Visually arrange TikZ flowcharts and copy the updated LaTeX back to Overleaf.",
+  "content_scripts": [
+    {
+      "matches": ["https://www.overleaf.com/project/*"],
+      "js": ["core.js", "content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

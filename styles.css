@@ -1,0 +1,23 @@
+#ofv-launcher { position: fixed; right: 18px; bottom: 22px; z-index: 2147483646; border: 0; border-radius: 999px; padding: 11px 16px; background: #176b4d; color: white; font: 600 14px system-ui; box-shadow: 0 5px 20px #0003; cursor: pointer; }
+#ofv-panel { position: fixed; z-index: 2147483647; top: 0; right: 0; width: min(620px, 94vw); height: 100vh; background: #f8fafc; color: #17212b; box-shadow: -8px 0 30px #0003; transform: translateX(105%); transition: transform .2s ease; display: flex; flex-direction: column; font: 14px/1.4 system-ui; }
+#ofv-panel.open { transform: translateX(0); }
+#ofv-panel header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: #114b3a; color: white; font-size: 17px; }
+#ofv-panel header button { border: 0; background: transparent; color: white; font-size: 26px; cursor: pointer; }
+.ofv-toolbar { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #dbe2e8; }
+.ofv-toolbar button { border: 1px solid #b8c3cc; border-radius: 6px; padding: 7px 10px; background: white; cursor: pointer; }
+.ofv-toolbar button.primary { margin-left: auto; background: #176b4d; border-color: #176b4d; color: white; }
+#ofv-panel details { padding: 8px 12px; border-bottom: 1px solid #dbe2e8; }
+#ofv-panel summary { cursor: pointer; }
+#ofv-source { width: 100%; height: 170px; box-sizing: border-box; margin-top: 8px; padding: 8px; border: 1px solid #b8c3cc; border-radius: 5px; font: 12px/1.45 ui-monospace, monospace; resize: vertical; }
+#ofv-message { padding: 7px 12px; color: #5b6873; font-size: 12px; }
+#ofv-canvas { flex: 1; min-height: 0; width: 100%; background-color: white; background-image: linear-gradient(#e8edf1 1px, transparent 1px), linear-gradient(90deg, #e8edf1 1px, transparent 1px); background-size: 15px 15px; touch-action: none; }
+.ofv-node { cursor: grab; }
+.ofv-node:active { cursor: grabbing; }
+.ofv-node rect { fill: #effaf5; stroke: #176b4d; stroke-width: 2; }
+.ofv-node text { pointer-events: none; fill: #17212b; font: 14px system-ui; }
+.ofv-resize { fill: #f59e0b; stroke: white; stroke-width: 2; cursor: nwse-resize; }
+.ofv-edge { stroke: #64748b; stroke-width: 2; }
+#ofv-panel footer { display: flex; align-items: center; gap: 14px; padding: 8px 12px; border-top: 1px solid #dbe2e8; min-height: 32px; }
+#ofv-grid { width: 55px; }
+#ofv-status { color: #176b4d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ofv-status.error { color: #b42318; }
