@@ -2,7 +2,7 @@
   "use strict";
 
   const SVG_NS = "http://www.w3.org/2000/svg";
-  const state = { source: "", nodes: [], edges: [], scale: 60, selected: null, missingTikzPackage: false };
+  const state = { source: "", nodes: [], edges: [], scale: 60, selected: null, selectedEdge: null, missingTikzPackage: false };
   const fillColors = {
     white: "#ffffff", "red!20": "#fecaca", "orange!25": "#fed7aa", "yellow!30": "#fef08a",
     "green!20": "#bbf7d0", "cyan!20": "#a5f3fc", "blue!20": "#bfdbfe", "violet!20": "#ddd6fe", "gray!20": "#e5e7eb"
@@ -51,6 +51,11 @@
         <option value="yellow!30">Yellow</option><option value="green!20">Green</option><option value="cyan!20">Cyan</option>
         <option value="blue!20">Blue</option><option value="violet!20">Violet</option><option value="gray!20">Gray</option>
       </select></label>
+      <label>Text color <select id="ofv-text-color">
+        <option value="black">Black</option><option value="red!70!black">Red</option><option value="orange!80!black">Orange</option>
+        <option value="green!60!black">Green</option><option value="cyan!60!black">Cyan</option><option value="blue!70!black">Blue</option>
+        <option value="violet!70!black">Violet</option><option value="gray!70!black">Gray</option>
+      </select></label>
       <label>Border color <select id="ofv-stroke">
         <option value="black">Black</option><option value="red!70!black">Red</option><option value="orange!80!black">Orange</option>
         <option value="green!60!black">Green</option><option value="cyan!60!black">Cyan</option><option value="blue!70!black">Blue</option>
@@ -58,8 +63,22 @@
       </select></label>
       <label>Border width <input id="ofv-border-width" class="ofv-number-input" type="number" min="0.1" max="5" step="0.1"> pt</label>
     </div>
+    <div id="ofv-edge-tools" hidden>
+      <strong id="ofv-selected-edge">Selected edge</strong>
+      <label>Arrow <select id="ofv-edge-direction">
+        <option value="forward">Forward</option>
+        <option value="reverse">Reverse</option>
+        <option value="both">Both directions</option>
+        <option value="none">No arrow</option>
+      </select></label>
+      <label>Connection <select id="ofv-edge-connection">
+        <option value="straight">Straight</option>
+        <option value="horizontal-vertical">Horizontal then vertical</option>
+        <option value="vertical-horizontal">Vertical then horizontal</option>
+      </select></label>
+    </div>
     <details><summary>LaTeX source</summary><textarea id="ofv-source" spellcheck="false" placeholder="Paste TikZ code containing \\node ... at (x,y) and \\draw ..."></textarea></details>
-    <div id="ofv-message">Drag a node to move it. Drag its bottom-right handle to resize it. Double-click a node to edit its text.</div>
+    <div id="ofv-message">Drag nodes to move them, double-click to edit text, or click an edge to edit its arrow and connection.</div>
     <svg id="ofv-canvas" viewBox="0 0 900 620" role="img" aria-label="Draggable flowchart canvas"></svg>
     <footer><label>Grid <input id="ofv-grid" type="number" min="0.1" step="0.1" value="0.25"> cm</label><span id="ofv-status"></span></footer>`;
   document.body.appendChild(panel);
@@ -75,8 +94,13 @@
   const fontSizeInput = panel.querySelector("#ofv-font-size");
   const shapeInput = panel.querySelector("#ofv-shape");
   const fillInput = panel.querySelector("#ofv-fill");
+  const textColorInput = panel.querySelector("#ofv-text-color");
   const strokeInput = panel.querySelector("#ofv-stroke");
   const borderWidthInput = panel.querySelector("#ofv-border-width");
+  const edgeTools = panel.querySelector("#ofv-edge-tools");
+  const selectedEdgeName = panel.querySelector("#ofv-selected-edge");
+  const edgeDirectionInput = panel.querySelector("#ofv-edge-direction");
+  const edgeConnectionInput = panel.querySelector("#ofv-edge-connection");
 
   launcher.addEventListener("click", () => panel.classList.toggle("open"));
   panel.addEventListener("click", (event) => {
@@ -88,7 +112,8 @@
     if (action === "copy") copyLatex();
     if (action === "copy-setup") copySetup();
   });
-  [shapeInput, fillInput, strokeInput, fontFamilyInput, fontSizeInput, borderWidthInput].forEach((input) => input.addEventListener("change", updateSelectedStyle));
+  [shapeInput, fillInput, textColorInput, strokeInput, fontFamilyInput, fontSizeInput, borderWidthInput].forEach((input) => input.addEventListener("change", updateSelectedStyle));
+  [edgeDirectionInput, edgeConnectionInput].forEach((input) => input.addEventListener("change", updateSelectedEdge));
   labelInput.addEventListener("change", commitLabelEdit);
   labelInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -119,7 +144,9 @@
     state.nodes = parsed.nodes;
     state.edges = parsed.edges;
     state.selected = parsed.nodes.some((node) => node.id === state.selected) ? state.selected : null;
+    state.selectedEdge = Number.isInteger(state.selectedEdge) && state.selectedEdge < parsed.edges.length ? state.selectedEdge : null;
     updateNodeToolbar();
+    updateEdgeToolbar();
     render();
     const result = parsed.nodes.length ? `Found ${parsed.nodes.length} nodes and ${parsed.edges.length} edges.` : "No nodes were found. This MVP requires explicit at (x,y) coordinates.";
     const setupWarning = state.missingTikzPackage ? " Add \\usepackage{tikz} to the document preamble before recompiling." : "";
@@ -167,7 +194,7 @@
     const b = bounds();
     canvas.setAttribute("viewBox", `0 0 ${Math.max(500, 80 + (b.maxX - b.minX) * state.scale)} ${Math.max(400, 80 + (b.maxY - b.minY) * state.scale)}`);
     const defs = svg("defs");
-    const marker = svg("marker", { id: "ofv-arrow", markerWidth: 10, markerHeight: 10, refX: 9, refY: 3, orient: "auto", markerUnits: "strokeWidth" });
+    const marker = svg("marker", { id: "ofv-arrow", markerWidth: 10, markerHeight: 10, refX: 9, refY: 3, orient: "auto-start-reverse", markerUnits: "strokeWidth" });
     marker.appendChild(svg("path", { d: "M0,0 L0,6 L9,3 z", fill: "#64748b" }));
     defs.appendChild(marker);
     canvas.appendChild(defs);
@@ -175,19 +202,43 @@
       const center = point(node, b);
       return [node.id, { node, ...center, ...visualSize(node) }];
     }));
-    state.edges.forEach((edge) => {
+    state.edges.forEach((edge, edgeIndex) => {
       const from = map.get(edge.from), to = map.get(edge.to);
       if (!from || !to) return;
-      const dx = to.x - from.x, dy = to.y - from.y;
-      const start = FlowchartCore.boundaryOffset(from.node.shape, from.width, from.height, dx, dy);
-      const end = FlowchartCore.boundaryOffset(to.node.shape, to.width, to.height, -dx, -dy);
-      canvas.appendChild(svg("line", {
-        x1: from.x + start.x, y1: from.y + start.y,
-        x2: to.x + end.x, y2: to.y + end.y,
-        class: "ofv-edge", "marker-end": "url(#ofv-arrow)"
-      }));
+      drawEdge(edge, edgeIndex, from, to);
     });
     state.nodes.forEach((node) => drawNode(map.get(node.id)));
+  }
+
+  function drawEdge(edge, edgeIndex, from, to) {
+    const dx = to.x - from.x, dy = to.y - from.y;
+    let startVector = { x: dx, y: dy };
+    let endVector = { x: -dx, y: -dy };
+    if (edge.connection === "horizontal-vertical") {
+      startVector = { x: dx || 1, y: 0 };
+      endVector = { x: 0, y: -dy || -1 };
+    }
+    if (edge.connection === "vertical-horizontal") {
+      startVector = { x: 0, y: dy || 1 };
+      endVector = { x: -dx || -1, y: 0 };
+    }
+    const start = FlowchartCore.boundaryOffset(from.node.shape, from.width, from.height, startVector.x, startVector.y);
+    const end = FlowchartCore.boundaryOffset(to.node.shape, to.width, to.height, endVector.x, endVector.y);
+    const a = { x: from.x + start.x, y: from.y + start.y };
+    const z = { x: to.x + end.x, y: to.y + end.y };
+    let pathData = `M ${a.x} ${a.y} L ${z.x} ${z.y}`;
+    if (edge.connection === "horizontal-vertical") pathData = `M ${a.x} ${a.y} L ${to.x} ${a.y} L ${to.x} ${z.y}`;
+    if (edge.connection === "vertical-horizontal") pathData = `M ${a.x} ${a.y} L ${a.x} ${to.y} L ${z.x} ${to.y}`;
+    const group = svg("g", { class: "ofv-edge-group" + (state.selectedEdge === edgeIndex ? " selected" : "") });
+    const hit = svg("path", { d: pathData, class: "ofv-edge-hit" });
+    const visible = svg("path", { d: pathData, class: "ofv-edge" });
+    if (edge.direction === "forward" || edge.direction === "both") visible.setAttribute("marker-end", "url(#ofv-arrow)");
+    if (edge.direction === "reverse" || edge.direction === "both") visible.setAttribute("marker-start", "url(#ofv-arrow)");
+    hit.addEventListener("click", (event) => selectEdge(event, edgeIndex));
+    visible.addEventListener("click", (event) => selectEdge(event, edgeIndex));
+    group.appendChild(hit);
+    group.appendChild(visible);
+    canvas.appendChild(group);
   }
 
   function drawNode(layout) {
@@ -205,7 +256,7 @@
     }
     const fontPixels = (Number(node.fontSize) || 10) * 2.54 / 72.27 * state.scale;
     const browserFamily = node.fontFamily === "sans" ? "Arial, sans-serif" : node.fontFamily === "monospace" ? "monospace" : '"Latin Modern Roman", "Times New Roman", serif';
-    const label = svg("text", { x: 0, y: 1, "text-anchor": "middle", "dominant-baseline": "middle", style: `font-size:${fontPixels}px;font-family:${browserFamily}` });
+    const label = svg("text", { x: 0, y: 1, fill: strokeColors[node.textColor] || "#1f2937", "text-anchor": "middle", "dominant-baseline": "middle", style: `font-size:${fontPixels}px;font-family:${browserFamily}` });
     label.textContent = node.label.replace(/\\\\/g, " ");
     group.appendChild(label);
     const title = svg("title");
@@ -220,7 +271,9 @@
   function beginDrag(event, node, resize) {
     event.preventDefault();
     state.selected = node.id;
+    state.selectedEdge = null;
     updateNodeToolbar();
+    updateEdgeToolbar();
     event.currentTarget.classList.add("selected");
     const start = screenToSvg(event), original = { x: node.x, y: node.y, width: node.width, height: node.height };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -253,7 +306,7 @@
   }
 
   function syncSource() {
-    sourceBox.value = FlowchartCore.updateTikz(state.source, state.nodes);
+    sourceBox.value = FlowchartCore.updateTikz(state.source, state.nodes, state.edges);
   }
 
   function updateNodeToolbar() {
@@ -266,6 +319,7 @@
     fontSizeInput.value = node.fontSize;
     shapeInput.value = node.shape;
     fillInput.value = fillColors[node.fill] ? node.fill : "white";
+    textColorInput.value = strokeColors[node.textColor] ? node.textColor : "black";
     strokeInput.value = strokeColors[node.stroke] ? node.stroke : "black";
     borderWidthInput.value = node.borderWidth;
   }
@@ -275,6 +329,7 @@
     if (!node) return;
     node.shape = shapeInput.value;
     node.fill = fillInput.value;
+    node.textColor = textColorInput.value;
     node.stroke = strokeInput.value;
     node.fontFamily = fontFamilyInput.value;
     node.fontSize = Math.min(48, Math.max(6, Number(fontSizeInput.value) || 10));
@@ -290,12 +345,43 @@
     event.preventDefault();
     event.stopPropagation();
     state.selected = node.id;
+    state.selectedEdge = null;
     updateNodeToolbar();
+    updateEdgeToolbar();
     render();
     requestAnimationFrame(() => {
       labelInput.focus();
       labelInput.select();
     });
+  }
+
+  function selectEdge(event, edgeIndex) {
+    event.preventDefault();
+    event.stopPropagation();
+    state.selected = null;
+    state.selectedEdge = edgeIndex;
+    updateNodeToolbar();
+    updateEdgeToolbar();
+    render();
+  }
+
+  function updateEdgeToolbar() {
+    const edge = Number.isInteger(state.selectedEdge) ? state.edges[state.selectedEdge] : null;
+    edgeTools.hidden = !edge;
+    if (!edge) return;
+    selectedEdgeName.textContent = `Selected edge: ${edge.from} → ${edge.to}`;
+    edgeDirectionInput.value = edge.direction;
+    edgeConnectionInput.value = edge.connection;
+  }
+
+  function updateSelectedEdge() {
+    const edge = Number.isInteger(state.selectedEdge) ? state.edges[state.selectedEdge] : null;
+    if (!edge) return;
+    edge.direction = edgeDirectionInput.value;
+    edge.connection = edgeConnectionInput.value;
+    syncSource();
+    render();
+    message(`Updated edge from ${edge.from} to ${edge.to}.`, false);
   }
 
   function commitLabelEdit() {

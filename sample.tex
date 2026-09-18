@@ -7,13 +7,13 @@
 \pagestyle{empty}
 \centering
 \begin{tikzpicture}[>=stealth]
-  \node[draw=green!60!black, fill=green!20, font=\rmfamily\fontsize{11}{13.2}\selectfont, line width=0.8pt, rounded corners, minimum width=2.8cm, minimum height=1.1cm] (start) at (0,0) {Start};
-  \node[draw=blue!70!black, fill=blue!20, font=\sffamily\fontsize{12}{14.4}\selectfont, line width=1.2pt, minimum width=3cm, minimum height=1.1cm] (process) at (0,-2.2) {Process data};
-  \node[draw=orange!80!black, fill=yellow!30, font=\rmfamily\fontsize{10}{12}\selectfont, line width=0.5pt, diamond, minimum width=2.5cm, minimum height=1.4cm] (check) at (0,-4.5) {Successful?};
-  \node[draw=violet!70!black, fill=violet!20, font=\ttfamily\fontsize{10}{12}\selectfont, line width=1pt, ellipse, minimum width=2.8cm, minimum height=1.1cm] (done) at (3.8,-4.5) {Done};
+  \node[draw=green!60!black, fill=green!20, text=green!60!black, font=\rmfamily\fontsize{11}{13.2}\selectfont, line width=0.8pt, rounded corners, minimum width=2.8cm, minimum height=1.1cm] (start) at (0,0) {Start};
+  \node[draw=blue!70!black, fill=blue!20, text=blue!70!black, font=\sffamily\fontsize{12}{14.4}\selectfont, line width=1.2pt, minimum width=3cm, minimum height=1.1cm] (process) at (0,-2.2) {Process data};
+  \node[draw=orange!80!black, fill=yellow!30, text=orange!80!black, font=\rmfamily\fontsize{10}{12}\selectfont, line width=0.5pt, diamond, minimum width=2.5cm, minimum height=1.4cm] (check) at (0,-4.5) {Successful?};
+  \node[draw=violet!70!black, fill=violet!20, text=violet!70!black, font=\ttfamily\fontsize{10}{12}\selectfont, line width=1pt, ellipse, minimum width=2.8cm, minimum height=1.1cm] (done) at (3.8,-3.2) {Done};
 
   \draw[->] (start) -- (process);
   \draw[->] (process) -- (check);
-  \draw[->] (check) -- (done);
+  \draw[<->] (check) -| (done);
 \end{tikzpicture}
 \end{document}

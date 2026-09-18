@@ -10,11 +10,11 @@
 .ofv-setup span { flex: 1; }
 .ofv-setup code { font: 11px ui-monospace, monospace; }
 .ofv-setup button { flex: none; border: 1px solid #c9a84f; border-radius: 5px; padding: 4px 7px; background: white; color: #5c4300; cursor: pointer; }
-#ofv-node-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 9px 12px; background: white; border-bottom: 1px solid #dbe2e8; }
-#ofv-node-tools[hidden] { display: none; }
-#ofv-node-tools strong { min-width: 100%; color: #176b4d; }
-#ofv-node-tools label { display: flex; align-items: center; gap: 5px; color: #46535e; font-size: 12px; }
-#ofv-node-tools select { border: 1px solid #b8c3cc; border-radius: 5px; padding: 4px 6px; background: white; color: #17212b; }
+#ofv-node-tools, #ofv-edge-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 9px 12px; background: white; border-bottom: 1px solid #dbe2e8; }
+#ofv-node-tools[hidden], #ofv-edge-tools[hidden] { display: none; }
+#ofv-node-tools strong, #ofv-edge-tools strong { min-width: 100%; color: #176b4d; }
+#ofv-node-tools label, #ofv-edge-tools label { display: flex; align-items: center; gap: 5px; color: #46535e; font-size: 12px; }
+#ofv-node-tools select, #ofv-edge-tools select { border: 1px solid #b8c3cc; border-radius: 5px; padding: 4px 6px; background: white; color: #17212b; }
 .ofv-number-input { width: 54px; border: 1px solid #b8c3cc; border-radius: 5px; padding: 4px 5px; color: #17212b; }
 .ofv-label-field { min-width: 100%; }
 #ofv-label { flex: 1; min-width: 0; border: 1px solid #b8c3cc; border-radius: 5px; padding: 5px 7px; color: #17212b; }
@@ -28,9 +28,11 @@
 .ofv-node:active { cursor: grabbing; }
 .ofv-node-shape { stroke-width: 2; }
 .ofv-node.selected .ofv-node-shape { filter: drop-shadow(0 2px 3px #0004); }
-.ofv-node text { pointer-events: none; fill: #17212b; font: 21px "Latin Modern Roman", "Times New Roman", serif; }
+.ofv-node text { pointer-events: none; font: 21px "Latin Modern Roman", "Times New Roman", serif; }
 .ofv-resize { fill: #f59e0b; stroke: white; stroke-width: 2; cursor: nwse-resize; }
-.ofv-edge { stroke: #1f2937; stroke-width: 1.4; }
+.ofv-edge { fill: none; stroke: #1f2937; stroke-width: 1.4; cursor: pointer; }
+.ofv-edge-hit { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+.ofv-edge-group.selected .ofv-edge { stroke: #0f8a5f; stroke-width: 3; }
 #ofv-panel footer { display: flex; align-items: center; gap: 14px; padding: 8px 12px; border-top: 1px solid #dbe2e8; min-height: 32px; }
 #ofv-grid { width: 55px; }
 #ofv-status { color: #176b4d; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

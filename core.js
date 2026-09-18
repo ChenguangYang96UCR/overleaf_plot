@@ -10,7 +10,7 @@
       ")\\s*\\)\\s*\\{([^{}]*)\\}\\s*;",
     "g"
   );
-  const EDGE_RE = /\\draw\s*(?:\[([^\]]*)\])?\s*\(([^)]+)\)\s*(--|(?:-+>)|(?:-+\|))\s*\(([^)]+)\)\s*;/g;
+  const EDGE_RE = /\\draw\s*(?:\[([^\]]*)\])?\s*\(([^)]+)\)\s*(--|-\||\|-)\s*\(([^)]+)\)\s*;/g;
 
   function optionNumber(options, key, fallback) {
     const match = new RegExp("(?:^|,)\\s*" + key + "\\s*=\\s*(" + NUMBER + ")\\s*cm(?:\\s*,|$)").exec(options || "");
@@ -53,6 +53,20 @@
     return match ? Number(match[1]) : fallback;
   }
 
+  function edgeDirection(options) {
+    const parts = optionParts(options);
+    if (parts.includes("<->")) return "both";
+    if (parts.includes("<-")) return "reverse";
+    if (parts.includes("->")) return "forward";
+    return "none";
+  }
+
+  function edgeConnection(operator) {
+    if (operator === "-|") return "horizontal-vertical";
+    if (operator === "|-") return "vertical-horizontal";
+    return "straight";
+  }
+
   function parseTikz(source) {
     const nodes = [];
     const edges = [];
@@ -69,6 +83,7 @@
         shape: nodeShape(match[1]),
         fill: optionValue(match[1], "fill", "white"),
         stroke: optionValue(match[1], "draw", "black"),
+        textColor: optionValue(match[1], "text", "black"),
         fontFamily: fontFamily(match[1]),
         fontSize: fontSize(match[1]),
         borderWidth: pointSize(match[1], "line width", 0.4),
@@ -80,7 +95,17 @@
     }
     EDGE_RE.lastIndex = 0;
     while ((match = EDGE_RE.exec(source))) {
-      edges.push({ from: match[2].trim(), to: match[4].trim(), options: match[1] || "", operator: match[3] });
+      edges.push({
+        from: match[2].trim(),
+        to: match[4].trim(),
+        options: match[1] || "",
+        operator: match[3],
+        direction: edgeDirection(match[1]),
+        connection: edgeConnection(match[3]),
+        start: match.index,
+        end: EDGE_RE.lastIndex,
+        raw: match[0]
+      });
     }
     return { nodes, edges };
   }
@@ -101,6 +126,7 @@
       if (shapeOptions.has(part) || part.startsWith("rounded corners")) return false;
       if (part === "draw" || part.startsWith("draw=")) return false;
       if (part === "fill" || part.startsWith("fill=")) return false;
+      if (part.startsWith("text=")) return false;
       if (part.startsWith("font=")) return false;
       if (part.startsWith("line width=")) return false;
       if (["thin", "semithin", "thick", "very thick", "ultra thick"].includes(part)) return false;
@@ -108,6 +134,7 @@
     });
     parts.push("draw=" + (node.stroke || "black"));
     parts.push("fill=" + (node.fill || "white"));
+    parts.push("text=" + (node.textColor || "black"));
     const family = node.fontFamily === "sans" ? "\\sffamily" : node.fontFamily === "monospace" ? "\\ttfamily" : "\\rmfamily";
     const size = Number(node.fontSize) || 10;
     parts.push("font=" + family + "\\fontsize{" + format(size) + "}{" + format(size * 1.2) + "}\\selectfont");
@@ -118,11 +145,21 @@
     return parts.join(", ");
   }
 
-  function updateTikz(source, nodes) {
+  function applyEdgeStyle(options, edge) {
+    const parts = optionParts(options).filter((part) => !["->", "<-", "<->", "-"].includes(part));
+    if (edge.direction === "forward") parts.push("->");
+    if (edge.direction === "reverse") parts.push("<-");
+    if (edge.direction === "both") parts.push("<->");
+    return parts.join(", ");
+  }
+
+  function updateTikz(source, nodes, edges) {
     const byId = new Map(nodes.map((node) => [node.id, node]));
-    const parsed = parseTikz(source).nodes;
+    const parsedGraph = parseTikz(source);
+    const parsed = parsedGraph.nodes;
+    const replacements = [];
     let output = source;
-    for (let index = parsed.length - 1; index >= 0; index -= 1) {
+    for (let index = 0; index < parsed.length; index += 1) {
       const original = parsed[index];
       const changed = byId.get(original.id);
       if (!changed) continue;
@@ -130,7 +167,23 @@
       options = setOption(options, "minimum width", changed.width);
       options = setOption(options, "minimum height", changed.height);
       const replacement = "\\node[" + options + "] (" + original.id + ") at (" + format(changed.x) + "," + format(changed.y) + ") {" + changed.label + "};";
-      output = output.slice(0, original.start) + replacement + output.slice(original.end);
+      replacements.push({ start: original.start, end: original.end, text: replacement });
+    }
+    if (edges) {
+      for (let index = 0; index < parsedGraph.edges.length; index += 1) {
+        const original = parsedGraph.edges[index];
+        const changed = edges[index];
+        if (!changed) continue;
+        const options = applyEdgeStyle(original.options, changed);
+        const operator = changed.connection === "horizontal-vertical" ? "-|" : changed.connection === "vertical-horizontal" ? "|-" : "--";
+        const optionBlock = options ? "[" + options + "]" : "";
+        const replacement = "\\draw" + optionBlock + " (" + original.from + ") " + operator + " (" + original.to + ");";
+        replacements.push({ start: original.start, end: original.end, text: replacement });
+      }
+    }
+    replacements.sort((a, b) => b.start - a.start);
+    for (const replacement of replacements) {
+      output = output.slice(0, replacement.start) + replacement.text + output.slice(replacement.end);
     }
     return output;
   }
@@ -154,6 +207,6 @@
     return { x: dx * scale, y: dy * scale };
   }
 
-  root.FlowchartCore = { parseTikz, updateTikz, setOption, applyNodeStyle, boundaryOffset };
+  root.FlowchartCore = { parseTikz, updateTikz, setOption, applyNodeStyle, applyEdgeStyle, boundaryOffset };
   if (typeof module !== "undefined") module.exports = root.FlowchartCore;
 })(typeof globalThis !== "undefined" ? globalThis : window);
