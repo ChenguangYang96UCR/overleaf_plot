@@ -101,7 +101,7 @@
       let options = applyNodeStyle(original.options, changed);
       options = setOption(options, "minimum width", changed.width);
       options = setOption(options, "minimum height", changed.height);
-      const replacement = "\\node[" + options + "] (" + original.id + ") at (" + format(changed.x) + "," + format(changed.y) + ") {" + original.label + "};";
+      const replacement = "\\node[" + options + "] (" + original.id + ") at (" + format(changed.x) + "," + format(changed.y) + ") {" + changed.label + "};";
       output = output.slice(0, original.start) + replacement + output.slice(original.end);
     }
     return output;
@@ -111,6 +111,21 @@
     return Number(value).toFixed(2).replace(/\.?0+$/, "");
   }
 
-  root.FlowchartCore = { parseTikz, updateTikz, setOption, applyNodeStyle };
+  function boundaryOffset(shape, width, height, dx, dy) {
+    if (!dx && !dy) return { x: 0, y: 0 };
+    const halfWidth = Math.max(width / 2, 0.001);
+    const halfHeight = Math.max(height / 2, 0.001);
+    let scale;
+    if (shape === "ellipse") {
+      scale = 1 / Math.sqrt((dx * dx) / (halfWidth * halfWidth) + (dy * dy) / (halfHeight * halfHeight));
+    } else if (shape === "diamond") {
+      scale = 1 / (Math.abs(dx) / halfWidth + Math.abs(dy) / halfHeight);
+    } else {
+      scale = 1 / Math.max(Math.abs(dx) / halfWidth, Math.abs(dy) / halfHeight);
+    }
+    return { x: dx * scale, y: dy * scale };
+  }
+
+  root.FlowchartCore = { parseTikz, updateTikz, setOption, applyNodeStyle, boundaryOffset };
   if (typeof module !== "undefined") module.exports = root.FlowchartCore;
 })(typeof globalThis !== "undefined" ? globalThis : window);

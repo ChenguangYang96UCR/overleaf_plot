@@ -13,7 +13,9 @@ An early Chrome and Edge extension MVP for visually arranging TikZ flowcharts in
 
 Click **Load from editor**, or paste TikZ code into the **LaTeX source** field and click **Parse / Refresh**. Drag a node to change its position. Drag the yellow handle in its bottom-right corner to change its minimum width and height. Click **Copy LaTeX**, then paste the updated code back into Overleaf.
 
-Click a node to open the node toolbar. The toolbar can change its shape, fill color, and border color. Supported shapes are rectangle, rounded rectangle, ellipse, and diamond.
+Click a node to open the node toolbar. The toolbar can change its text, shape, fill color, and border color. Supported shapes are rectangle, rounded rectangle, ellipse, and diamond. Double-click a node to focus and select its text for editing. Press **Enter** or move focus away to apply the change; press **Escape** to cancel it.
+
+The visual canvas approximates TikZ's default 10 pt text metrics and inner spacing. A node expands when its text is wider than `minimum width`, and diamond nodes use their effective TikZ bounding size. Edges are clipped to the actual rectangle, ellipse, or diamond boundary instead of being drawn to the node center.
 
 The document preamble must include:
 
@@ -34,13 +36,15 @@ Use [sample.tex](sample.tex) to try the extension.
 4. Drag **Process data** one grid step to the right.
 5. Drag the yellow resize handle on **Done** to make the node wider.
 6. Select **Process data**, change its shape to **Ellipse**, its fill to **Blue**, and its border to **Blue**.
-7. Click **Copy LaTeX**, replace the original `tikzpicture` block in Overleaf, and compile again.
+7. Double-click **Process data**, replace its text with `Analyze data`, and press **Enter**.
+8. Click **Copy LaTeX**, replace the original `tikzpicture` block in Overleaf, and compile again.
 
 Expected result:
 
 - The `process` node's `at (x,y)` coordinate changes.
 - The `done` node's `minimum width` and possibly `minimum height` change.
 - The `process` node becomes a blue ellipse with a dark blue border.
+- The `process` node displays **Analyze data** in both the visual editor and the compiled PDF.
 - All four nodes and three arrows remain present after recompilation.
 
 ## Currently supported syntax

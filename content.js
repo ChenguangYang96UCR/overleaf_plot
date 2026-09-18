@@ -12,6 +12,9 @@
     "green!60!black": "#166534", "cyan!60!black": "#0e7490", "blue!70!black": "#1d4ed8",
     "violet!70!black": "#6d28d9", "gray!70!black": "#374151"
   };
+  const textMeasure = document.createElement("canvas").getContext("2d");
+  const nodeFontSize = 21;
+  textMeasure.font = `${nodeFontSize}px "Latin Modern Roman", "Times New Roman", serif`;
 
   const launcher = document.createElement("button");
   launcher.id = "ofv-launcher";
@@ -32,6 +35,7 @@
     <div class="ofv-setup"><span>Required in the preamble: <code>\\usepackage{tikz}</code> and <code>\\usetikzlibrary{shapes.geometric}</code></span><button data-action="copy-setup">Copy setup</button></div>
     <div id="ofv-node-tools" hidden>
       <strong id="ofv-selected-name">Selected node</strong>
+      <label class="ofv-label-field">Text <input id="ofv-label" type="text" aria-label="Node text"></label>
       <label>Shape <select id="ofv-shape">
         <option value="rectangle">Rectangle</option>
         <option value="rounded">Rounded rectangle</option>
@@ -50,7 +54,7 @@
       </select></label>
     </div>
     <details><summary>LaTeX source</summary><textarea id="ofv-source" spellcheck="false" placeholder="Paste TikZ code containing \\node ... at (x,y) and \\draw ..."></textarea></details>
-    <div id="ofv-message">Drag a node to move it. Drag its bottom-right handle to resize it.</div>
+    <div id="ofv-message">Drag a node to move it. Drag its bottom-right handle to resize it. Double-click a node to edit its text.</div>
     <svg id="ofv-canvas" viewBox="0 0 900 620" role="img" aria-label="Draggable flowchart canvas"></svg>
     <footer><label>Grid <input id="ofv-grid" type="number" min="0.1" step="0.1" value="0.25"> cm</label><span id="ofv-status"></span></footer>`;
   document.body.appendChild(panel);
@@ -61,6 +65,7 @@
   const gridInput = panel.querySelector("#ofv-grid");
   const nodeTools = panel.querySelector("#ofv-node-tools");
   const selectedName = panel.querySelector("#ofv-selected-name");
+  const labelInput = panel.querySelector("#ofv-label");
   const shapeInput = panel.querySelector("#ofv-shape");
   const fillInput = panel.querySelector("#ofv-fill");
   const strokeInput = panel.querySelector("#ofv-stroke");
@@ -76,6 +81,19 @@
     if (action === "copy-setup") copySetup();
   });
   [shapeInput, fillInput, strokeInput].forEach((input) => input.addEventListener("change", updateSelectedStyle));
+  labelInput.addEventListener("change", commitLabelEdit);
+  labelInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitLabelEdit();
+      labelInput.blur();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      updateNodeToolbar();
+      labelInput.blur();
+    }
+  });
 
   function loadFromEditor() {
     const editor = document.querySelector(".cm-content") || document.querySelector(".ace_content") || document.querySelector("textarea");
@@ -106,12 +124,26 @@
 
   function bounds() {
     if (!state.nodes.length) return { minX: -5, maxX: 5, minY: -4, maxY: 4 };
+    const sizes = state.nodes.map((node) => ({ node, ...visualSize(node) }));
     return {
-      minX: Math.min(...state.nodes.map((n) => n.x - n.width / 2)) - 1,
-      maxX: Math.max(...state.nodes.map((n) => n.x + n.width / 2)) + 1,
-      minY: Math.min(...state.nodes.map((n) => n.y - n.height / 2)) - 1,
-      maxY: Math.max(...state.nodes.map((n) => n.y + n.height / 2)) + 1
+      minX: Math.min(...sizes.map(({ node, width }) => node.x - width / state.scale / 2)) - 1,
+      maxX: Math.max(...sizes.map(({ node, width }) => node.x + width / state.scale / 2)) + 1,
+      minY: Math.min(...sizes.map(({ node, height }) => node.y - height / state.scale / 2)) - 1,
+      maxY: Math.max(...sizes.map(({ node, height }) => node.y + height / state.scale / 2)) + 1
     };
+  }
+
+  function visualSize(node) {
+    const textWidth = textMeasure.measureText(node.label.replace(/\\[a-zA-Z]+/g, "")).width;
+    const tikzInnerSep = 0.24 * state.scale;
+    let width = Math.max(node.width * state.scale, textWidth + tikzInnerSep);
+    let height = Math.max(node.height * state.scale, 0.58 * state.scale);
+    if (node.shape === "diamond") {
+      const diameter = Math.max(width, height);
+      width = diameter;
+      height = diameter;
+    }
+    return { width, height };
   }
 
   function point(node, b) {
@@ -127,20 +159,29 @@
     marker.appendChild(svg("path", { d: "M0,0 L0,6 L9,3 z", fill: "#64748b" }));
     defs.appendChild(marker);
     canvas.appendChild(defs);
-    const map = new Map(state.nodes.map((node) => [node.id, node]));
+    const map = new Map(state.nodes.map((node) => {
+      const center = point(node, b);
+      return [node.id, { node, ...center, ...visualSize(node) }];
+    }));
     state.edges.forEach((edge) => {
       const from = map.get(edge.from), to = map.get(edge.to);
       if (!from || !to) return;
-      const a = point(from, b), z = point(to, b);
-      canvas.appendChild(svg("line", { x1: a.x, y1: a.y, x2: z.x, y2: z.y, class: "ofv-edge", "marker-end": "url(#ofv-arrow)" }));
+      const dx = to.x - from.x, dy = to.y - from.y;
+      const start = FlowchartCore.boundaryOffset(from.node.shape, from.width, from.height, dx, dy);
+      const end = FlowchartCore.boundaryOffset(to.node.shape, to.width, to.height, -dx, -dy);
+      canvas.appendChild(svg("line", {
+        x1: from.x + start.x, y1: from.y + start.y,
+        x2: to.x + end.x, y2: to.y + end.y,
+        class: "ofv-edge", "marker-end": "url(#ofv-arrow)"
+      }));
     });
-    state.nodes.forEach((node) => drawNode(node, b));
+    state.nodes.forEach((node) => drawNode(map.get(node.id)));
   }
 
-  function drawNode(node, b) {
-    const p = point(node, b), w = node.width * state.scale, h = node.height * state.scale;
+  function drawNode(layout) {
+    const { node, x, y, width: w, height: h } = layout;
     const selected = state.selected === node.id;
-    const group = svg("g", { class: "ofv-node" + (selected ? " selected" : ""), "data-id": node.id, transform: `translate(${p.x},${p.y})` });
+    const group = svg("g", { class: "ofv-node" + (selected ? " selected" : ""), "data-id": node.id, transform: `translate(${x},${y})` });
     const appearance = { class: "ofv-node-shape", fill: fillColors[node.fill] || "#ffffff", stroke: strokeColors[node.stroke] || "#1f2937" };
     if (node.shape === "ellipse") {
       group.appendChild(svg("ellipse", { ...appearance, cx: 0, cy: 0, rx: w / 2, ry: h / 2 }));
@@ -149,11 +190,15 @@
     } else {
       group.appendChild(svg("rect", { ...appearance, x: -w / 2, y: -h / 2, width: w, height: h, rx: node.shape === "rounded" ? 8 : 0 }));
     }
-    const label = svg("text", { x: 0, y: 5, "text-anchor": "middle" });
+    const label = svg("text", { x: 0, y: 1, "text-anchor": "middle", "dominant-baseline": "middle" });
     label.textContent = node.label.replace(/\\\\/g, " ");
     group.appendChild(label);
+    const title = svg("title");
+    title.textContent = "Double-click to edit text";
+    group.appendChild(title);
     group.appendChild(svg("circle", { cx: w / 2, cy: h / 2, r: 7, class: "ofv-resize", "data-resize": "1" }));
     group.addEventListener("pointerdown", (event) => beginDrag(event, node, Boolean(event.target.dataset.resize)));
+    group.addEventListener("dblclick", (event) => beginLabelEdit(event, node));
     canvas.appendChild(group);
   }
 
@@ -201,6 +246,7 @@
     nodeTools.hidden = !node;
     if (!node) return;
     selectedName.textContent = `Selected: ${node.id}`;
+    labelInput.value = node.label;
     shapeInput.value = node.shape;
     fillInput.value = fillColors[node.fill] ? node.fill : "white";
     strokeInput.value = strokeColors[node.stroke] ? node.stroke : "black";
@@ -215,6 +261,32 @@
     syncSource();
     render();
     message(`Updated style for ${node.id}.`, false);
+  }
+
+  function beginLabelEdit(event, node) {
+    event.preventDefault();
+    event.stopPropagation();
+    state.selected = node.id;
+    updateNodeToolbar();
+    render();
+    requestAnimationFrame(() => {
+      labelInput.focus();
+      labelInput.select();
+    });
+  }
+
+  function commitLabelEdit() {
+    const node = state.nodes.find((item) => item.id === state.selected);
+    if (!node) return;
+    if (/[{}]/.test(labelInput.value)) {
+      message("Node text cannot contain braces in this MVP.", true);
+      labelInput.value = node.label;
+      return;
+    }
+    node.label = labelInput.value;
+    syncSource();
+    render();
+    message(`Updated text for ${node.id}.`, false);
   }
 
   async function copyLatex() {
